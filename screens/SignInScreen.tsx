@@ -1,4 +1,6 @@
 import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { useAuth } from '../contexts/AuthContext';
+
 
 export default function SignInScreen({
   visible,
@@ -7,6 +9,16 @@ export default function SignInScreen({
   visible: boolean;
   onClose: () => void;
 }) {
+  const { signInWithGoogle } = useAuth();
+
+  const handleGooglePress = async () => {
+    try {
+      await signInWithGoogle();
+      onClose();
+    } catch (error) {
+      console.error('Google sign-in failed', error);
+    }
+  };
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       {/* Outer pressable catches taps outside the modal */}
@@ -15,7 +27,7 @@ export default function SignInScreen({
         <Pressable style={styles.modal} onPress={() => {}}>
           <Text style={styles.title}>Sign In</Text>
 
-          <Pressable style={styles.google} onPress={() => {}}>
+          <Pressable style={styles.google} onPress={handleGooglePress}>
             <Text style={styles.googleText}>Continue with Google</Text>
           </Pressable>
 

@@ -4,6 +4,7 @@ import { initializeAuth, getReactNativePersistence } from 'firebase/auth/react-n
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const RUNPOD_ENDPOINT = Constants.expoConfig?.extra?.runpodEndpoint ?? 'https://u0yfim6wmdb9ov-8000.proxy.runpod.net/';
+export const GOOGLE_WEB_CLIENT_ID = Constants.expoConfig?.extra?.googleWebClientId ?? '';
 
 // Firebase configuration
 const firebaseConfig = {
@@ -24,5 +25,6 @@ export const auth = initializeAuth(app, {
 export const CONFIG = {
   RUNPOD_ENDPOINT,
   firebaseConfig,
+  GOOGLE_WEB_CLIENT_ID,
   // Add other config values as needed
-}; 
+};

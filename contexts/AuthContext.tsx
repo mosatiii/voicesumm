@@ -9,6 +9,7 @@ interface AuthContextType {
   trialMinutesRemaining: number;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updateProfile: (displayName: string, photoURL?: string) => Promise<void>;
@@ -64,6 +65,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signInWithGoogle = async () => {
+    try {
+      await authService.signInWithGoogle();
+    } catch (error) {
+      console.error('Google sign-in error:', error);
+      throw error;
+    }
+  };
+
   const signOut = async () => {
     try {
       await authService.signOut();
@@ -112,6 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         trialMinutesRemaining,
         signIn,
         signUp,
+        signInWithGoogle,
         signOut,
         resetPassword,
         updateProfile,
