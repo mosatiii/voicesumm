@@ -1,88 +1,121 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Animated, Dimensions, TextInput, Platform } from 'react-native';
-import { Mic, Upload, FileText, Brain, ListTodo, Pencil, ChevronRight } from 'lucide-react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Animated, Platform, TextInput } from 'react-native';
+import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
+import * as DocumentPicker from 'expo-document-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
-import AudioRecorderPlayer from 'react-native-audio-recorder-player';
-import axios from 'axios';
-import { PermissionsAndroid } from 'react-native';
+import { CONFIG } from '../config/config';
+import { trialService } from '../services/trialService';
+import { SignupPromptModal } from '../components/SignupPromptModal';
+import { useAuth } from '../contexts/AuthContext';
 
-const RUNPOD_ENDPOINT = 'YOUR_RUNPOD_ENDPOINT';
-const RUNPOD_API_KEY = 'YOUR_RUNPOD_API_KEY';
+const { RUNPOD_ENDPOINT } = CONFIG;
 
 export default function RecorderScreen({ navigation }) {
+  const { trialMinutesUsed, trialMinutesRemaining, addTrialMinutes, user } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
   const [hasRecorded, setHasRecorded] = useState(false);
   const [transcription, setTranscription] = useState('');
   const [summaryPoints, setSummaryPoints] = useState([]);
-  const [editingIndex, setEditingIndex] = useState(-1);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [recordingTime, setRecordingTime] = useState('00:00');
+  const [showSignupModal, setShowSignupModal] = useState(false);
+  const [minutesRemaining, setMinutesRemaining] = useState(30);
+  const [minutesUsed, setMinutesUsed] = useState(0);
+  const [showTrialReminder, setShowTrialReminder] = useState(false);
+  
+  const recording = useRef(null);
+  const recordingTimer = useRef(null);
+  const startTime = useRef(0);
+
   const swipeableRefs = useRef<Array<Swipeable | null>>([]);
   const flashAnimValue = useRef(new Animated.Value(0)).current;
   const hintAnim = useRef(new Animated.Value(0)).current;
   const swipeThreshold = 100; // Minimum swipe distance required
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [recordingTime, setRecordingTime] = useState('00:00');
-  const audioRecorderPlayer = useRef(new AudioRecorderPlayer()).current;
-  const recordingPath = useRef('');
 
   useEffect(() => {
-    if (hasRecorded) {
-      startHintAnimation();
-    }
-    // Request necessary permissions on mount
-    requestPermissions();
+    setupAudio();
+    loadTrialStatus();
     return () => {
-      // Cleanup recording on unmount
       if (isRecording) {
         stopRecording();
+      }
+      if (recordingTimer.current) {
+        clearInterval(recordingTimer.current);
       }
     };
   }, []);
 
-  const requestPermissions = async () => {
-    if (Platform.OS === 'android') {
-      try {
-        const grants = await PermissionsAndroid.requestMultiple([
-          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-          PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
-          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-        ]);
-        
-        console.log('write external storage', grants);
-      } catch (err) {
-        console.warn(err);
-        return;
-      }
+  const loadTrialStatus = async () => {
+    const used = await trialService.getTrialMinutesUsed();
+    const remaining = await trialService.getMinutesRemaining();
+    setMinutesUsed(used);
+    setMinutesRemaining(remaining);
+  };
+
+  const setupAudio = async () => {
+    try {
+      await Audio.requestPermissionsAsync();
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+    } catch (error) {
+      console.error('Failed to setup audio:', error);
     }
+  };
+
+  const updateRecordingTime = () => {
+    const currentTime = Date.now();
+    const elapsedTime = currentTime - startTime.current;
+    const seconds = Math.floor(elapsedTime / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    setRecordingTime(
+      `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`
+    );
   };
 
   const startRecording = async () => {
     try {
-      setIsRecording(true);
-      const path = Platform.select({
-        ios: 'recording.m4a',
-        android: 'sdcard/recording.mp4',
-      });
-      recordingPath.current = path;
+      // Check if we have enough minutes remaining
+      if (await trialService.shouldPromptSignup()) {
+        setShowSignupModal(true);
+        return;
+      }
 
-      const result = await audioRecorderPlayer.startRecorder(path);
-      audioRecorderPlayer.addRecordBackListener((e) => {
-        const time = audioRecorderPlayer.mmssss(Math.floor(e.currentPosition));
-        setRecordingTime(time.slice(0, 5));
-      });
-      console.log(result);
+      const { recording: newRecording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      recording.current = newRecording;
+      setIsRecording(true);
+      
+      startTime.current = Date.now();
+      recordingTimer.current = setInterval(updateRecordingTime, 1000);
     } catch (error) {
       console.error('Failed to start recording:', error);
       setIsRecording(false);
     }
   };
-
+  
   const stopRecording = async () => {
     try {
-      const result = await audioRecorderPlayer.stopRecorder();
-      audioRecorderPlayer.removeRecordBackListener();
+      if (recordingTimer.current) {
+        clearInterval(recordingTimer.current);
+      }
+
+      await recording.current.stopAndUnloadAsync();
+      const uri = recording.current.getURI();
+      recording.current = null;
       setIsRecording(false);
       setIsProcessing(true);
-      await processAudioWithWhisper();
+
+      // Calculate duration in minutes
+      const duration = (Date.now() - startTime.current) / 1000 / 60;
+
+      // Process the recording
+      await processAudioWithWhisper(uri, duration);
     } catch (error) {
       console.error('Failed to stop recording:', error);
       setIsRecording(false);
@@ -90,43 +123,81 @@ export default function RecorderScreen({ navigation }) {
     }
   };
 
-  const processAudioWithWhisper = async () => {
+  const processAudioWithWhisper = async (uri: string, duration: number) => {
     try {
-      // Create form data with audio file
-      const formData = new FormData();
-      formData.append('audio', {
-        uri: `file://${recordingPath.current}`,
-        type: Platform.OS === 'ios' ? 'audio/x-m4a' : 'audio/mp4',
-        name: Platform.OS === 'ios' ? 'recording.m4a' : 'recording.mp4',
-      } as any); // Type assertion needed for React Native's FormData
-
-      // Send to Runpod Whisper endpoint
-      const response = await axios.post(RUNPOD_ENDPOINT, formData, {
-        headers: {
-          'Authorization': `Bearer ${RUNPOD_API_KEY}`,
-          'Content-Type': 'multipart/form-data',
-        },
+      // Read the audio file
+      const audioFile = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
       });
 
-      // Process the transcription
-      if (response.data && response.data.text) {
-        setTranscription(response.data.text);
-        // Generate summary points using the transcription
-        await generateSummaryPoints(response.data.text);
+      // Create the request payload
+      const payload = {
+        input: {
+          audio: `data:audio/m4a;base64,${audioFile}`,
+          language: "en",
+          model_size: "base",
+          transcription: "text",
+          translate: false,
+          temperature: 0,
+          best_of: 1,
+          beam_size: 1,
+          patience: 0,
+          suppress_tokens: "-1",
+          condition_on_previous_text: false,
+          temperature_increment_on_fallback: 0.2,
+          compression_ratio_threshold: 2.4,
+          logprob_threshold: -1,
+          no_speech_threshold: 0.6
+        }
+      };
+
+      // Get auth token if available
+      const token = await trialService.getAuthToken();
+      
+      // Send to Runpod Whisper endpoint
+      const response = await fetch(RUNPOD_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      setHasRecorded(true);
+      const data = await response.json();
+
+      // Process the transcription
+      if (data && data.output && data.output.text) {
+        const transcribedText = data.output.text;
+        setTranscription(transcribedText);
+        await generateSummaryPoints(transcribedText);
+        setHasRecorded(true);
+
+        // Only add to trial minutes if not logged in
+        if (!user) {
+          await addTrialMinutes(duration);
+        }
+      } else {
+        throw new Error('Invalid response format from Whisper API');
+      }
+
       setIsProcessing(false);
     } catch (error) {
       console.error('Failed to process audio:', error);
+      Alert.alert(
+        'Error',
+        'Failed to process audio. Please try again.'
+      );
       setIsProcessing(false);
     }
   };
 
-  const generateSummaryPoints = async (text) => {
+  const generateSummaryPoints = async (text: string) => {
     try {
-      // You can either use Runpod's API or another service to generate summary points
-      // For now, we'll use a simple split by sentences
       const sentences = text.split(/[.!?]+/).filter(Boolean);
       const points = sentences.slice(0, 3).map(s => s.trim());
       setSummaryPoints(points);
@@ -136,15 +207,52 @@ export default function RecorderScreen({ navigation }) {
   };
 
   const handleMicPress = () => {
+    if (!isRecording && minutesUsed < 30) {
+      setShowTrialReminder(true);
+    }
+    
     if (isRecording) {
       stopRecording();
+      setShowTrialReminder(false);
     } else {
       startRecording();
     }
   };
 
-  const handleUpload = () => {
-    Alert.alert('Upload', 'Select an audio file to upload');
+  const handleUpload = async () => {
+    try {
+      // Check if we have enough minutes remaining
+      if (await trialService.shouldPromptSignup()) {
+        setShowSignupModal(true);
+        return;
+      }
+
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'audio/*',
+        copyToCacheDirectory: true,
+      });
+
+      if ('assets' in result && result.assets.length > 0) {
+        setIsProcessing(true);
+        // For uploaded files, estimate duration as 1 minute per MB
+        const fileSizeInMB = result.assets[0].size / (1024 * 1024);
+        await processAudioWithWhisper(result.assets[0].uri, fileSizeInMB);
+      }
+    } catch (error) {
+      console.error('Failed to pick document:', error);
+    }
+  };
+
+  const handleSignup = () => {
+    // Navigate to signup screen
+    navigation.navigate('Auth', { screen: 'Signup' });
+    setShowSignupModal(false);
+  };
+
+  const handleLogin = () => {
+    // Navigate to login screen
+    navigation.navigate('Auth', { screen: 'Login' });
+    setShowSignupModal(false);
   };
 
   const handleAddToDo = (index) => {
@@ -161,32 +269,8 @@ export default function RecorderScreen({ navigation }) {
     setSummaryPoints(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleEdit = (index) => {
-    setEditingIndex(index);
-  };
-
-  const handleEditComplete = (index, newText) => {
-    setSummaryPoints(prev => 
-      prev.map((point, i) => i === index ? newText : point)
-    );
-    setEditingIndex(-1);
-  };
-
-  const startHintAnimation = () => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(hintAnim, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(hintAnim, {
-          toValue: 0,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+  const handleWantMore = () => {
+    navigation.navigate('SignInModal');
   };
 
   const renderFeatureCard = (Icon, title, subtitle, emoji) => (
@@ -232,7 +316,7 @@ export default function RecorderScreen({ navigation }) {
             },
           ]}
         >
-          <ChevronRight size={24} color="white" />
+          <Ionicons name="chevron-forward" size={24} color="white" />
           <Text style={styles.actionText}>Add to To-Do</Text>
         </Animated.View>
       </Animated.View>
@@ -270,7 +354,7 @@ export default function RecorderScreen({ navigation }) {
           ]}
         >
           <Text style={styles.actionText}>Delete</Text>
-          <ChevronRight size={24} color="white" style={{ transform: [{ rotate: '180deg' }] }} />
+          <Ionicons name="chevron-back" size={24} color="white" />
         </Animated.View>
       </Animated.View>
     );
@@ -284,7 +368,7 @@ export default function RecorderScreen({ navigation }) {
         duration: 200,
         useNativeDriver: true,
       }),
-      Animated.delay(300), // Hold the flash longer
+      Animated.delay(300),
       Animated.timing(flashAnimValue, {
         toValue: 0,
         duration: 300,
@@ -295,11 +379,7 @@ export default function RecorderScreen({ navigation }) {
 
   return (
     <GestureHandlerRootView style={styles.flex}>
-      <ScrollView 
-        contentContainerStyle={styles.container}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Recording Section */}
+      <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.recordingSection}>
           <TouchableOpacity
             style={[
@@ -310,7 +390,11 @@ export default function RecorderScreen({ navigation }) {
             onPress={handleMicPress}
             disabled={isProcessing}
           >
-            <Mic size={48} color={isRecording ? 'white' : '#374151'} />
+            <Ionicons 
+              name={isRecording ? "mic" : "mic-outline"} 
+              size={48} 
+              color={isRecording ? 'white' : '#374151'} 
+            />
           </TouchableOpacity>
 
           <Text style={styles.recordingText}>
@@ -319,36 +403,46 @@ export default function RecorderScreen({ navigation }) {
              'Tap to start recording'}
           </Text>
 
-          <TouchableOpacity style={styles.uploadButton} onPress={handleUpload}>
-            <Upload size={20} color="white" style={styles.uploadIcon} />
-            <Text style={styles.uploadText}>Upload Audio File</Text>
-          </TouchableOpacity>
-
-          {isRecording && (
-            <View style={styles.cta}>
-              <Text style={styles.ctaText}>You have 1 hour of free transcribing</Text>
-              <Text style={styles.ctaLink}>Want more?</Text>
+          {showTrialReminder && (
+            <View style={styles.trialReminderContainer}>
+              <View style={styles.trialReminderContent}>
+                <Text style={styles.trialReminderText}>
+                  🎉 You have 30 minutes free to try out all features!
+                </Text>
+                <TouchableOpacity 
+                  style={styles.wantMoreButton}
+                  onPress={handleWantMore}
+                >
+                  <Text style={styles.wantMoreText}>Want more?</Text>
+                  <Ionicons name="arrow-forward" size={16} color="white" />
+                </TouchableOpacity>
+              </View>
             </View>
           )}
+
+          <TouchableOpacity style={styles.uploadButton} onPress={handleUpload}>
+            <Ionicons name="cloud-upload-outline" size={20} color="white" style={styles.uploadIcon} />
+            <Text style={styles.uploadText}>Upload Audio File</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Features Section - Only show when not recording and not recorded */}
         {!isRecording && !hasRecorded && (
           <View style={styles.features}>
             {renderFeatureCard(
-              FileText, 
+              Ionicons, 
               'Smart Transcription', 
               'Convert speech to text',
               '🎯'
             )}
             {renderFeatureCard(
-              Brain, 
+              Ionicons, 
               'AI Summary', 
               'Extract key points',
               '🧠'
             )}
             {renderFeatureCard(
-              ListTodo, 
+              Ionicons, 
               'Task Management', 
               'Create tasks from your audio',
               '✅'
@@ -356,7 +450,6 @@ export default function RecorderScreen({ navigation }) {
           </View>
         )}
 
-        {/* Results Section - Only show after recording */}
         {hasRecorded && (
           <>
             <View style={styles.card}>
@@ -397,59 +490,37 @@ export default function RecorderScreen({ navigation }) {
                       }]
                     }
                   ]}>
-                    {editingIndex === index ? (
-                      <TextInput
-                        style={styles.summaryInput}
-                        value={point}
-                        onChangeText={(text) => handleEditComplete(index, text)}
-                        onBlur={() => setEditingIndex(-1)}
-                        autoFocus
-                      />
-                    ) : (
-                      <View style={styles.summaryContent}>
-                        <Text style={styles.summaryText}>{point}</Text>
-                        <TouchableOpacity 
-                          onPress={() => handleEdit(index)}
-                          style={styles.editButton}
-                        >
-                          <Pencil size={16} color="#6B7280" />
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                    <Animated.View style={[
-                      styles.hintOverlay,
-                      {
-                        opacity: hintAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0, 0.1]
-                        })
-                      }
-                    ]} />
+                    <Text style={styles.summaryText}>{point}</Text>
                   </Animated.View>
                 </Swipeable>
               ))}
             </View>
           </>
         )}
-      </ScrollView>
 
-      {/* Success Flash Overlay */}
-      <Animated.View
-        style={[
-          styles.flashOverlay,
-          {
-            opacity: flashAnimValue,
-          },
-        ]}
-      />
+        <SignupPromptModal
+          visible={showSignupModal}
+          onClose={() => setShowSignupModal(false)}
+          onSignup={handleSignup}
+          onLogin={handleLogin}
+          minutesUsed={minutesUsed}
+        />
+
+        {/* Success Flash Overlay */}
+        <Animated.View
+          style={[
+            styles.flashOverlay,
+            {
+              opacity: flashAnimValue,
+            },
+          ]}
+        />
+      </ScrollView>
     </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
   container: {
     padding: 24,
     backgroundColor: '#F9FAFB',
@@ -463,11 +534,17 @@ const styles = StyleSheet.create({
     padding: 32,
     borderRadius: 999,
     marginBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   micButtonActive: {
     backgroundColor: '#EF4444',
@@ -498,6 +575,48 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
+  card: {
+    backgroundColor: 'white',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    width: '100%',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  cardTitle: {
+    fontWeight: '600',
+    fontSize: 18,
+    marginBottom: 8,
+    color: '#111827',
+  },
+  cardText: {
+    fontSize: 16,
+    color: '#374151',
+    lineHeight: 24,
+  },
+  summaryItem: {
+    backgroundColor: '#F3F4F6',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  summaryText: {
+    fontSize: 16,
+    color: '#111827',
+  },
+  flex: {
+    flex: 1,
+  },
   features: {
     width: '100%',
     marginBottom: 24,
@@ -510,11 +629,17 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 12,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 6,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   featureLeft: {
     flexDirection: 'row',
@@ -541,78 +666,10 @@ const styles = StyleSheet.create({
     fontSize: 24,
     marginLeft: 12,
   },
-  cta: {
-    backgroundColor: '#EEF2FF',
-    padding: 12,
-    borderRadius: 10,
-    width: '100%',
-    alignItems: 'center',
-  },
-  ctaText: {
-    color: '#6B7280',
-    fontSize: 14,
-  },
-  ctaLink: {
-    color: '#3B82F6',
-    fontSize: 14,
-    fontWeight: '500',
-    marginTop: 4,
-  },
-  card: {
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  cardTitle: {
-    fontWeight: '600',
-    fontSize: 18,
-    marginBottom: 8,
-    color: '#111827',
-  },
-  cardText: {
-    fontSize: 16,
-    color: '#374151',
-    lineHeight: 24,
-  },
   cardSubtext: {
     fontSize: 13,
     color: '#6B7280',
     marginBottom: 12,
-  },
-  summaryItem: {
-    backgroundColor: '#F3F4F6',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 8,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  summaryContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  summaryText: {
-    fontSize: 16,
-    color: '#111827',
-    flex: 1,
-  },
-  summaryInput: {
-    fontSize: 16,
-    color: '#111827',
-    padding: 0,
-    flex: 1,
-  },
-  editButton: {
-    padding: 4,
-    marginLeft: 8,
   },
   leftAction: {
     backgroundColor: '#4CAF50',
@@ -637,13 +694,51 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 16,
   },
-  hintOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#4CAF50',
-  },
   flashOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#4CAF50',
     zIndex: 999,
   },
-});
+  trialReminderContainer: {
+    backgroundColor: '#4F46E5',
+    padding: 16,
+    borderRadius: 12,
+    marginVertical: 16,
+    width: '100%',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#4F46E5',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  trialReminderContent: {
+    alignItems: 'center',
+    gap: 12,
+  },
+  trialReminderText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  wantMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    gap: 8,
+  },
+  wantMoreText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+}); 

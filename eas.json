@@ -1,0 +1,25 @@
+{
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "RUNPOD_ENDPOINT": "https://u0yfim6wmdb9ov-8000.proxy.runpod.net/predict",
+        "RUNPOD_API_KEY": ""
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "RUNPOD_ENDPOINT": "https://u0yfim6wmdb9ov-8000.proxy.runpod.net/predict",
+        "RUNPOD_API_KEY": ""
+      }
+    },
+    "production": {
+      "env": {
+        "RUNPOD_ENDPOINT": "https://u0yfim6wmdb9ov-8000.proxy.runpod.net/predict",
+        "RUNPOD_API_KEY": ""
+      }
+    }
+  }
+} 

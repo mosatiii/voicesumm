@@ -27,17 +27,17 @@ export default function DrawerNavigator() {
           >
             <Drawer.Screen name="Home" component={TabNavigator} />
             <Drawer.Screen name="Recordings"
-  component={EmptyScreen}
+  component={RecordingsScreen}
   listeners={({ navigation }) => ({
     focus: () => {
-      navigation.navigate('Home', { screen: 'Recordings' });
+      navigation.navigate('Recordings', { screen: 'Recordings' });
     },
   })} />
             <Drawer.Screen name="Privacy Policy"
-  component={EmptyScreen}
+  component={PrivacyPolicyScreen}
   listeners={({ navigation }) => ({
     focus: () => {
-      navigation.navigate('Home', { screen: 'Privacy Policy' });
+      navigation.navigate('Privacy Policy', { screen: 'Privacy Policy' });
     },
   })} />
             <Drawer.Screen
@@ -47,7 +47,9 @@ export default function DrawerNavigator() {
                 drawerItemPress: (e: any) => {
                   e.preventDefault(); // prevent navigation
                   setSignInVisible(true); // show modal
+                  
                 },
+                
               }}
             />
           </Drawer.Navigator>
