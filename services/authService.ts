@@ -6,9 +6,16 @@ import {
   sendPasswordResetEmail,
   updateProfile,
   User,
-  onAuthStateChanged
+  onAuthStateChanged,
+  signInWithCredential,
+  GoogleAuthProvider
 } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
+import { GOOGLE_WEB_CLIENT_ID } from '../config/config';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export const authService = {
   async signUp(email: string, password: string): Promise<User> {
@@ -21,6 +28,39 @@ export const authService = {
     const { user } = await signInWithEmailAndPassword(auth, email, password);
     await AsyncStorage.setItem('user', JSON.stringify(user));
     return user;
+  },
+
+  async signInWithGoogle(): Promise<User | null> {
+    try {
+      const redirectUri = AuthSession.makeRedirectUri({ useProxy: true });
+      const authRequest = new AuthSession.AuthRequest({
+        clientId: GOOGLE_WEB_CLIENT_ID,
+        scopes: ['openid', 'profile', 'email'],
+        responseType: AuthSession.ResponseType.IdToken,
+        redirectUri,
+      });
+
+      const result = await authRequest.promptAsync(
+        {
+          authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+          tokenEndpoint: 'https://oauth2.googleapis.com/token',
+          revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
+        },
+        { useProxy: true }
+      );
+
+      if (result.type === 'success' && result.params.id_token) {
+        const credential = GoogleAuthProvider.credential(result.params.id_token);
+        const userCred = await signInWithCredential(auth, credential);
+        await AsyncStorage.setItem('user', JSON.stringify(userCred.user));
+        return userCred.user;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Google sign-in error:', error);
+      throw error;
+    }
   },
 
   async signOut(): Promise<void> {
