@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { initializeAuth, getReactNativePersistence } from 'firebase/auth/react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const RUNPOD_ENDPOINT = Constants.expoConfig?.extra?.runpodEndpoint ?? 'https://u0yfim6wmdb9ov-8000.proxy.runpod.net/';
 
@@ -16,7 +17,9 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+export const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(AsyncStorage),
+});
 
 export const CONFIG = {
   RUNPOD_ENDPOINT,
