@@ -1,14 +1,12 @@
+import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import DrawerNavigator from './navigation/DrawerNavigator';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import SignInScreen from './screens/SignInScreen';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { View, ActivityIndicator } from 'react-native';
-
-const RootStack = createNativeStackNavigator();
+import { PaperProvider } from 'react-native-paper';
 
 function AppContent() {
-  const { loading, user } = useAuth();
+  const { loading } = useAuth();
 
   if (loading) {
     return (
@@ -20,29 +18,17 @@ function AppContent() {
 
   return (
     <NavigationContainer>
-      <RootStack.Navigator id={undefined}>
-        {user ? (
-          <RootStack.Screen
-            name="MainDrawer"
-            component={DrawerNavigator}
-            options={{ headerShown: false }}
-          />
-        ) : (
-          <RootStack.Screen
-            name="SignInModal"
-            component={SignInScreen}
-            options={{ presentation: 'modal', headerShown: false }}
-          />
-        )}
-      </RootStack.Navigator>
+      <DrawerNavigator />
     </NavigationContainer>
   );
 }
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <PaperProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </PaperProvider>
   );
 }

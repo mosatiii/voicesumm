@@ -1,7 +1,13 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import * as AuthSession from 'expo-auth-session';
 
-const TRIAL_MINUTES_KEY = '@voicesumm:trialMinutesUsed';
+// Storage keys
+const STORAGE_KEYS = {
+  TRIAL_MINUTES: 'trial_minutes_used',
+  AUTH_TOKEN: 'auth_token',
+  USER_DATA: 'user_data'
+} as const;
+
 const TRIAL_LIMIT_MINUTES = 30;
 const DEFAULT_FREE_MINUTES = 60;
 
@@ -23,7 +29,7 @@ export const trialService = {
 
   async getTrialMinutesUsed(): Promise<number> {
     try {
-      const minutes = await AsyncStorage.getItem(TRIAL_MINUTES_KEY);
+      const minutes = await SecureStore.getItemAsync(STORAGE_KEYS.TRIAL_MINUTES);
       return minutes ? parseFloat(minutes) : 0;
     } catch (error) {
       console.error('Error reading trial minutes:', error);
@@ -35,7 +41,7 @@ export const trialService = {
     try {
       const currentMinutes = await this.getTrialMinutesUsed();
       const newTotal = currentMinutes + duration;
-      await AsyncStorage.setItem(TRIAL_MINUTES_KEY, newTotal.toString());
+      await SecureStore.setItemAsync(STORAGE_KEYS.TRIAL_MINUTES, newTotal.toString());
     } catch (error) {
       console.error('Error updating trial minutes:', error);
     }
@@ -66,7 +72,7 @@ export const trialService = {
 
   async resetTrialUsage(): Promise<void> {
     try {
-      await AsyncStorage.removeItem(TRIAL_MINUTES_KEY);
+      await SecureStore.deleteItemAsync(STORAGE_KEYS.TRIAL_MINUTES);
     } catch (error) {
       console.error('Error resetting trial usage:', error);
     }
@@ -85,7 +91,7 @@ export const trialService = {
   // Helper methods for auth state
   async getAuthToken(): Promise<string | null> {
     try {
-      return await AsyncStorage.getItem('@auth_token');
+      return await SecureStore.getItemAsync(STORAGE_KEYS.AUTH_TOKEN);
     } catch (error) {
       console.error('Error getting auth token:', error);
       return null;
@@ -94,7 +100,7 @@ export const trialService = {
 
   async getUserData(): Promise<UserData | null> {
     try {
-      const data = await AsyncStorage.getItem('@user_data');
+      const data = await SecureStore.getItemAsync(STORAGE_KEYS.USER_DATA);
       return data ? JSON.parse(data) : null;
     } catch (error) {
       console.error('Error getting user data:', error);

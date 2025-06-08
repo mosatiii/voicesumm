@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "622917397371",
+    "project_id": "todoai-d8e45",
+    "storage_bucket": "todoai-d8e45.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:622917397371:android:4b2d607cd9d70a55802bde",
+        "android_client_info": {
+          "package_name": "com.voicesumm.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBYX-g0gE4TcgizI5wAE2-_XLhQwYDofHw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

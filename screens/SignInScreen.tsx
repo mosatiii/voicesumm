@@ -1,74 +1,70 @@
-import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Button, ActivityIndicator, Text, Avatar } from 'react-native-paper';
+import { useExpoAuth } from '../hooks/useExpoAuth';
 
-export default function SignInScreen({
-  visible,
-  onClose,
-}: {
-  visible: boolean;
-  onClose: () => void;
-}) {
+export default function SignInScreen() {
+  const { signIn, signOut, userInfo, isLoading } = useExpoAuth();
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      {/* Outer pressable catches taps outside the modal */}
-      <Pressable style={styles.overlay} onPress={onClose}>
-        {/* Inner pressable blocks the tap from closing when clicking inside modal */}
-        <Pressable style={styles.modal} onPress={() => {}}>
-          <Text style={styles.title}>Sign In</Text>
-
-          <Pressable style={styles.google} onPress={() => {}}>
-            <Text style={styles.googleText}>Continue with Google</Text>
-          </Pressable>
-
-          <Pressable style={styles.apple} onPress={() => {}}>
-            <Text style={styles.appleText}>Continue with Apple</Text>
-          </Pressable>
-        </Pressable>
-      </Pressable>
-    </Modal>
+    <View style={styles.container}>
+      {isLoading ? (
+        <ActivityIndicator size="large" />
+      ) : userInfo ? (
+        <View style={styles.userInfo}>
+          {userInfo.picture && (
+            <Avatar.Image 
+              size={80} 
+              source={{ uri: userInfo.picture }} 
+              style={styles.avatar}
+            />
+          )}
+          <Text style={styles.name}>{userInfo.name}</Text>
+          <Text style={styles.email}>{userInfo.email}</Text>
+          <Button
+            mode="outlined"
+            onPress={signOut}
+            style={[styles.button, { marginTop: 20 }]}
+          >
+            Sign Out
+          </Button>
+        </View>
+      ) : (
+        <Button
+          mode="contained"
+          onPress={signIn}
+          style={styles.button}
+        >
+          Sign in with Google
+        </Button>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
+  container: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  modal: {
-    backgroundColor: '#fff',
     padding: 20,
-    borderRadius: 16,
-    width: '85%',
+  },
+  userInfo: {
     alignItems: 'center',
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '600',
-    marginBottom: 20,
-  },
-  google: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 12,
-    borderRadius: 12,
-    width: '100%',
-    alignItems: 'center',
+  avatar: {
     marginBottom: 10,
   },
-  googleText: {
-    fontSize: 16,
+  name: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 5,
   },
-  apple: {
-    backgroundColor: 'black',
-    padding: 12,
-    borderRadius: 12,
+  email: {
+    fontSize: 16,
+    color: '#666',
+  },
+  button: {
     width: '100%',
-    alignItems: 'center',
-    marginBottom: 20,
+    maxWidth: 300,
   },
-  appleText: {
-    fontSize: 16,
-    color: 'white',
-  },
-});
+}); 

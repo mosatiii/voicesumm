@@ -1,11 +1,12 @@
 export default {
   expo: {
-    name: "voice-summarizer",
-    slug: "voice-summarizer",
+    name: "voicesumm",
+    slug: "voicesumm",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "light",
+    scheme: "exp",
     splash: {
       image: "./assets/splash.png",
       resizeMode: "contain",
@@ -15,23 +16,31 @@ export default {
       "**/*"
     ],
     ios: {
-      supportsTablet: true
+      supportsTablet: true,
+      bundleIdentifier: "com.voicesumm.app"
     },
     android: {
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#ffffff"
-      }
+      },
+      package: "com.voicesumm.app"
     },
+    web: {
+      favicon: "./assets/favicon.png",
+      bundler: "metro"
+    },
+    plugins: [
+      "expo-router",
+      "expo-web-browser"
+    ],
     extra: {
-      runpodEndpoint: process.env.RUNPOD_ENDPOINT ?? "https://u0yfim6wmdb9ov-8000.proxy.runpod.net/predict",
-      runpodApiKey: process.env.RUNPOD_API_KEY ?? "",
-      firebaseApiKey: process.env.FIREBASE_API_KEY ?? "",
-      firebaseAuthDomain: process.env.FIREBASE_AUTH_DOMAIN ?? "",
-      firebaseProjectId: process.env.FIREBASE_PROJECT_ID ?? "",
-      firebaseStorageBucket: process.env.FIREBASE_STORAGE_BUCKET ?? "",
-      firebaseMessagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID ?? "",
-      firebaseAppId: process.env.FIREBASE_APP_ID ?? "",
+      router: {
+        origin: false
+      },
+      eas: {
+        projectId: "your-project-id"
+      }
     }
   }
 }; 

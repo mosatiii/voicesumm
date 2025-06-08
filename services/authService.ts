@@ -1,65 +1,48 @@
-import { auth } from '../config/config';
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  sendPasswordResetEmail,
-  updateProfile,
-  User,
-  onAuthStateChanged
-} from 'firebase/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+import { User } from '../types/auth';
+import { signOut as firebaseSignOut } from 'firebase/auth';
+import { auth } from '../components/FirebaseProvider';
+
+// Define secure storage keys
+const STORAGE_KEYS = {
+  USER: 'user',
+  TRIAL_MINUTES: 'trial_minutes_used',
+} as const;
 
 export const authService = {
-  async signUp(email: string, password: string): Promise<User> {
-    const { user } = await createUserWithEmailAndPassword(auth, email, password);
-    await AsyncStorage.setItem('user', JSON.stringify(user));
-    return user;
+  // Store user data
+  async storeUser(user: User) {
+    await SecureStore.setItemAsync(STORAGE_KEYS.USER, JSON.stringify(user));
   },
 
-  async signIn(email: string, password: string): Promise<User> {
-    const { user } = await signInWithEmailAndPassword(auth, email, password);
-    await AsyncStorage.setItem('user', JSON.stringify(user));
-    return user;
+  // Get the current user from secure storage
+  async getCurrentUser(): Promise<User | null> {
+    const userJson = await SecureStore.getItemAsync(STORAGE_KEYS.USER);
+    return userJson ? JSON.parse(userJson) : null;
   },
 
-  async signOut(): Promise<void> {
-    await signOut(auth);
-    await AsyncStorage.removeItem('user');
-  },
-
-  async resetPassword(email: string): Promise<void> {
-    await sendPasswordResetEmail(auth, email);
-  },
-
-  async updateUserProfile(displayName: string, photoURL?: string): Promise<void> {
-    if (auth.currentUser) {
-      await updateProfile(auth.currentUser, {
-        displayName,
-        photoURL
-      });
-      // Update stored user data
-      await AsyncStorage.setItem('user', JSON.stringify(auth.currentUser));
+  // Sign out
+  async signOut() {
+    try {
+      await firebaseSignOut(auth);
+      await SecureStore.deleteItemAsync(STORAGE_KEYS.USER);
+    } catch (error) {
+      console.error('Error signing out:', error);
+      throw error;
     }
   },
 
-  getCurrentUser(): User | null {
-    return auth.currentUser;
-  },
-
-  onAuthStateChanged(callback: (user: User | null) => void) {
-    return onAuthStateChanged(auth, callback);
-  },
-
   // Trial management
-  async getTrialStatus(): Promise<{ minutesUsed: number; minutesRemaining: number }> {
-    const minutesUsed = parseFloat(await AsyncStorage.getItem('trialMinutesUsed') || '0');
-    const minutesRemaining = Math.max(30 - minutesUsed, 0);
-    return { minutesUsed, minutesRemaining };
+  async getTrialStatus() {
+    const minutesUsedStr = await SecureStore.getItemAsync(STORAGE_KEYS.TRIAL_MINUTES);
+    return {
+      minutesUsed: minutesUsedStr ? parseInt(minutesUsedStr, 10) : 0,
+    };
   },
 
-  async addTrialMinutes(minutes: number): Promise<void> {
-    const currentMinutes = parseFloat(await AsyncStorage.getItem('trialMinutesUsed') || '0');
-    await AsyncStorage.setItem('trialMinutesUsed', (currentMinutes + minutes).toString());
-  }
+  async addTrialMinutes(minutes: number) {
+    const { minutesUsed } = await this.getTrialStatus();
+    const newMinutes = minutesUsed + minutes;
+    await SecureStore.setItemAsync(STORAGE_KEYS.TRIAL_MINUTES, newMinutes.toString());
+  },
 }; 
