@@ -1,6 +1,7 @@
-import React from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { Modal, View, Text, StyleSheet, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../contexts/AuthContext';
 
 interface SignupPromptModalProps {
   visible: boolean;
@@ -17,6 +18,35 @@ export function SignupPromptModal({
   onLogin,
   minutesUsed 
 }: SignupPromptModalProps) {
+  const { signIn } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isSignIn, setIsSignIn] = useState(false);
+
+  const handleGoogleAuth = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      await signIn();
+      if (isSignIn) {
+        onLogin();
+      } else {
+        onSignup();
+      }
+      onClose();
+    } catch (error) {
+      console.error('Error during authentication:', error);
+      setError('Failed to sign in with Google. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const toggleMode = () => {
+    setIsSignIn(!isSignIn);
+    setError(null);
+  };
+
   return (
     <Modal
       visible={visible}
@@ -26,28 +56,86 @@ export function SignupPromptModal({
     >
       <View style={styles.overlay}>
         <View style={styles.modalContent}>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+          <TouchableOpacity 
+            style={styles.closeButton} 
+            onPress={() => {
+              onClose();
+              setIsSignIn(false); // Reset to signup mode when closing
+            }}
+          >
             <Ionicons name="close" size={24} color="#6B7280" />
           </TouchableOpacity>
 
-          <Text style={styles.title}>Trial Period Ended</Text>
-          <Text style={styles.message}>
-            You've used {minutesUsed.toFixed(1)} minutes of transcription. Sign up now to get:
-          </Text>
-
-          <View style={styles.benefitsList}>
-            <Text style={styles.benefit}>• 60 additional minutes free</Text>
-            <Text style={styles.benefit}>• Save and organize recordings</Text>
-            <Text style={styles.benefit}>• Access on multiple devices</Text>
-            <Text style={styles.benefit}>• Priority transcription</Text>
+          <View style={styles.headerContainer}>
+            <Text style={styles.title}>
+              {isSignIn ? 'Welcome Back' : 'Create Account'}
+            </Text>
+            <Text style={styles.subtitle}>
+              {isSignIn 
+                ? 'Sign in to access your recordings'
+                : 'Get started with 30 minutes of free recording time'
+              }
+            </Text>
           </View>
 
-          <TouchableOpacity style={styles.signupButton} onPress={onSignup}>
-            <Text style={styles.signupButtonText}>Sign Up Free</Text>
+          {!isSignIn && (
+            <View style={styles.benefitsList}>
+              <View style={styles.benefitItem}>
+                <Ionicons name="time-outline" size={24} color="#4F46E5" style={styles.benefitIcon} />
+                <View style={styles.benefitText}>
+                  <Text style={styles.benefitTitle}>30 minutes free trial</Text>
+                  <Text style={styles.benefitDescription}>Start with 30 minutes of recording time on us</Text>
+                </View>
+              </View>
+              
+              <View style={styles.benefitItem}>
+                <Ionicons name="cloud-outline" size={24} color="#4F46E5" style={styles.benefitIcon} />
+                <View style={styles.benefitText}>
+                  <Text style={styles.benefitTitle}>Cloud backup & sync</Text>
+                  <Text style={styles.benefitDescription}>Your recordings are safely stored and synced</Text>
+                </View>
+              </View>
+              
+              <View style={styles.benefitItem}>
+                <Ionicons name="phone-portrait-outline" size={24} color="#4F46E5" style={styles.benefitIcon} />
+                <View style={styles.benefitText}>
+                  <Text style={styles.benefitTitle}>Access on all devices</Text>
+                  <Text style={styles.benefitDescription}>Use the app on any device, anytime</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+
+          <TouchableOpacity 
+            style={[styles.signupButton, isLoading && styles.signupButtonDisabled]} 
+            onPress={handleGoogleAuth}
+            disabled={isLoading}
+          >
+            <View style={styles.signupButtonContent}>
+              {isLoading ? (
+                <ActivityIndicator color="white" style={styles.googleIcon} />
+              ) : (
+                <Ionicons name="logo-google" size={20} color="white" style={styles.googleIcon} />
+              )}
+              <Text style={styles.signupButtonText}>
+                {isLoading ? 'Signing in...' : 'Continue with Google'}
+              </Text>
+            </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.loginButton} onPress={onLogin}>
-            <Text style={styles.loginButtonText}>Already have an account? Log in</Text>
+          <TouchableOpacity style={styles.loginButton} onPress={toggleMode}>
+            <Text style={styles.loginButtonText}>
+              {isSignIn 
+                ? "Don't have an account? Sign up" 
+                : 'Already have an account? Sign in'
+              }
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -65,7 +153,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: 'white',
-    borderRadius: 16,
+    borderRadius: 24,
     padding: 24,
     width: '100%',
     maxWidth: 400,
@@ -87,36 +175,76 @@ const styles = StyleSheet.create({
     top: 16,
     padding: 4,
   },
+  headerContainer: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 12,
+    marginBottom: 8,
     textAlign: 'center',
   },
-  message: {
+  subtitle: {
     fontSize: 16,
-    color: '#4B5563',
-    marginBottom: 20,
+    color: '#6B7280',
     textAlign: 'center',
     lineHeight: 24,
   },
   benefitsList: {
-    marginBottom: 24,
-    paddingHorizontal: 8,
+    marginBottom: 32,
   },
-  benefit: {
+  benefitItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  benefitIcon: {
+    marginRight: 16,
+  },
+  benefitText: {
+    flex: 1,
+  },
+  benefitTitle: {
     fontSize: 16,
-    color: '#374151',
-    marginBottom: 12,
-    lineHeight: 24,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  benefitDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
+  errorContainer: {
+    backgroundColor: '#FEE2E2',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 14,
+    textAlign: 'center',
   },
   signupButton: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#4F46E5',
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
+  },
+  signupButtonDisabled: {
+    opacity: 0.7,
+  },
+  signupButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleIcon: {
+    marginRight: 12,
   },
   signupButtonText: {
     color: 'white',
@@ -128,7 +256,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loginButtonText: {
-    color: '#3B82F6',
+    color: '#4F46E5',
     fontSize: 14,
     fontWeight: '500',
   },

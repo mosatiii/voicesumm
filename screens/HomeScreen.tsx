@@ -45,7 +45,7 @@ export const HomeScreen = () => {
       setTranscription('');
       setDuration(0);
       setIsRecording(true);
-      await recordingService.startRecording(handleTranscriptionUpdate);
+      await recordingService.startRecording(handleTranscriptionUpdate, handleError);
     } catch (error) {
       setError('Unable to start recording. Please check microphone permissions.');
       setIsRecording(false);
@@ -381,3 +381,7 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
 }); 
+
+function handleError(level: number): void {
+  throw new Error('Function not implemented.');
+}

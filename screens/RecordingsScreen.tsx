@@ -211,7 +211,7 @@ export default function RecordingsScreen() {
         setPlaybackStatus({
           id: recording.id,
           position: 0,
-          duration: status.durationMillis / 1000,
+          duration: status.durationMillis ? status.durationMillis / 1000 : recording.duration,
           isPlaying: true
         });
       } else {

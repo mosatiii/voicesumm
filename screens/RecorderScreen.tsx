@@ -12,14 +12,16 @@ import { recordingService } from '../services/recordingService';
 import { WaveformVisualizer } from '../components/WaveformVisualizer';
 import { Surface } from 'react-native-paper';
 import type { Recording } from '../types/recording';
+import type { User } from '../types/auth';
 import { useNavigation } from '@react-navigation/native';
 import { storageService } from '../services/storageService';
 import { Waveform } from '../components/Waveform';
 import { ErrorMessage } from '../components/ErrorMessage';
-import type { RootStackParamList, TabStackParamList } from '../navigation/types';
+import type { DrawerParamList, RootStackParamList, TabStackParamList, AuthStackParamList } from '../navigation/types';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { StackNavigationProp } from '@react-navigation/stack';
+import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import Animated, { 
   FadeInDown,
   withSpring,
@@ -30,12 +32,16 @@ import Animated, {
   useSharedValue,
   withDelay
 } from 'react-native-reanimated';
+import { SubscriptionBanner } from '../components/SubscriptionBanner';
 
 const { RUNPOD_ENDPOINT } = CONFIG;
 
 type RecorderScreenNavigationProp = CompositeNavigationProp<
   BottomTabNavigationProp<TabStackParamList, 'Recorder'>,
-  StackNavigationProp<RootStackParamList>
+  CompositeNavigationProp<
+    DrawerNavigationProp<DrawerParamList>,
+    StackNavigationProp<AuthStackParamList>
+  >
 >;
 
 // Utility functions
@@ -165,24 +171,30 @@ const RecordingSuccessModal = ({
   );
 };
 
+interface State {
+  actionItems: string[];
+  summaryPoints: string[];
+  // ... add other state types as needed
+}
+
 export default function RecorderScreen() {
-  const { trialMinutesUsed, trialMinutesRemaining, addTrialMinutes, user } = useAuth();
+  const { user } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
   const [hasRecorded, setHasRecorded] = useState(false);
   const [transcription, setTranscription] = useState<string>('');
-  const [summaryPoints, setSummaryPoints] = useState([]);
+  const [summaryPoints, setSummaryPoints] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingTime, setRecordingTime] = useState('00:00');
   const [showSignupModal, setShowSignupModal] = useState(false);
-  const [minutesRemaining, setMinutesRemaining] = useState(30);
   const [minutesUsed, setMinutesUsed] = useState(0);
-  const [showTrialReminder, setShowTrialReminder] = useState(false);
   const [liveTranscription, setLiveTranscription] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [savedRecording, setSavedRecording] = useState<Recording | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [duration, setDuration] = useState(0);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [actionItems, setActionItems] = useState<string[]>([]);
+  const [isGeneratingActions, setIsGeneratingActions] = useState(false);
   const navigation = useNavigation<RecorderScreenNavigationProp>();
   
   const recording = useRef(null);
@@ -192,8 +204,6 @@ export default function RecorderScreen() {
   const scrollViewRef = useRef(null);
   const [timer, setTimer] = useState<NodeJS.Timeout | null>(null);
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
-  const [actionItems, setActionItems] = useState<string[]>([]);
-  const [isGeneratingActions, setIsGeneratingActions] = useState(false);
   const [aiThinking, setAiThinking] = useState(false);
 
   // Reanimated shared values
@@ -245,7 +255,7 @@ export default function RecorderScreen() {
     const used = await trialService.getTrialMinutesUsed();
     const remaining = await trialService.getMinutesRemaining();
     setMinutesUsed(used);
-    setMinutesRemaining(remaining);
+    setElapsedMinutes(remaining);
   };
 
   const setupAudio = async () => {
@@ -274,7 +284,9 @@ export default function RecorderScreen() {
   const updateTrialTime = () => {
     setElapsedMinutes(prev => {
       if (prev === 0) {
-        clearInterval(trialTimer.current);
+        if (trialTimer.current) {
+          clearInterval(trialTimer.current);
+        }
         stopRecording();
         return 0;
       }
@@ -282,10 +294,14 @@ export default function RecorderScreen() {
     });
   };
 
-  const startTimer = () => {
-    if (timer) {
-      clearInterval(timer);
+  const clearTimer = (timerRef: NodeJS.Timeout | null) => {
+    if (timerRef) {
+      clearInterval(timerRef);
     }
+  };
+
+  const startTimer = () => {
+    clearTimer(timer);
     let seconds = 0;
     const newTimer = setInterval(() => {
       seconds++;
@@ -294,15 +310,13 @@ export default function RecorderScreen() {
       setRecordingTime(
         `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`
       );
-    }, 1000);
+    }, 1000) as NodeJS.Timeout;
     setTimer(newTimer);
   };
 
   const stopTimer = () => {
-    if (timer) {
-      clearInterval(timer);
-      setTimer(null);
-    }
+    clearTimer(timer);
+    setTimer(null);
     setRecordingTime('00:00');
   };
 
@@ -329,7 +343,12 @@ export default function RecorderScreen() {
   const handleStartRecording = async () => {
     try {
       if (await trialService.shouldPromptSignup()) {
-        setShowSignupModal(true);
+        // Show a brief tooltip before opening the signup modal
+        setError("You'll need to create an account to continue recording");
+        setTimeout(() => {
+          setError(null);
+          setShowSignupModal(true);
+        }, 2000);
         return;
       }
 
@@ -383,6 +402,11 @@ export default function RecorderScreen() {
   };
 
   const handlePress = () => {
+    if (!user) {
+      setShowSignupModal(true);
+      return;
+    }
+
     if (isRecording) {
       handleStopRecording();
     } else {
@@ -392,58 +416,7 @@ export default function RecorderScreen() {
 
   const startStreamingTranscription = async () => {
     try {
-      while (isRecording && recording.current) {
-        const status = await recording.current.getStatusAsync();
-        if (status.isDoneRecording) break;
-
-        const uri = recording.current.getURI();
-        if (!uri) continue;
-
-        const audioFile = await FileSystem.readAsStringAsync(uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-
-        const payload = {
-          input: {
-            audio: `data:audio/m4a;base64,${audioFile}`,
-            language: "en",
-            model_size: "base",
-            transcription: "text",
-            translate: false,
-            temperature: 0,
-            best_of: 1,
-            beam_size: 1,
-            patience: 0,
-            suppress_tokens: "-1",
-            condition_on_previous_text: false,
-            temperature_increment_on_fallback: 0.2,
-            compression_ratio_threshold: 2.4,
-            logprob_threshold: -1,
-            no_speech_threshold: 0.6
-          }
-        };
-
-        const token = await trialService.getAuthToken();
-        
-        const response = await fetch(RUNPOD_ENDPOINT, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token && { 'Authorization': `Bearer ${token}` }),
-          },
-          body: JSON.stringify(payload),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data && data.output && data.output.text) {
-            setLiveTranscription(data.output.text);
-            // Scroll to bottom of transcription
-            scrollViewRef.current?.scrollToEnd({ animated: true });
-          }
-        }
-
-        // Wait before next update
+      while (recordingService.getIsRecording()) {
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
     } catch (error) {
@@ -463,19 +436,8 @@ export default function RecorderScreen() {
       setIsRecording(false);
       setIsProcessing(true);
 
-      if (recording.current) {
-        await recording.current?.stopAndUnloadAsync();
-        const uri = recording.current?.getURI();
-        recording.current = null;
-
-        if (uri) {
-          const duration = (Date.now() - startTime.current) / 1000 / 60;
-          await processAudioWithWhisper(uri, duration);
-        }
-      } else {
-        const recording = await recordingService.stopRecording();
-        setSavedRecording(recording);
-      }
+      const recording = await recordingService.stopRecording();
+      setSavedRecording(recording);
 
       setIsProcessing(false);
       setTranscription('');
@@ -539,7 +501,7 @@ export default function RecorderScreen() {
         setHasRecorded(true);
 
         if (!user) {
-          await addTrialMinutes(duration);
+          await trialService.addTrialMinutes(duration);
         }
       } else {
         throw new Error('Invalid response format from Whisper API');
@@ -568,12 +530,11 @@ export default function RecorderScreen() {
 
   const handleMicPress = () => {
     if (!isRecording && minutesUsed < 30) {
-      setShowTrialReminder(true);
+      setElapsedMinutes(30 - minutesUsed);
     }
     
     if (isRecording) {
       stopRecording();
-      setShowTrialReminder(false);
     } else {
       handleStartRecording();
     }
@@ -618,14 +579,17 @@ export default function RecorderScreen() {
     }
   };
 
-  const handleSignup = () => {
+  const handleSignup = async () => {
+    // The actual sign-in will be handled in the SignupPromptModal
+    // Here we just need to handle post-signup success
     setShowSignupModal(false);
-    navigation.navigate('Auth', { screen: 'Signup' });
+    // Refresh the trial status
+    await loadTrialStatus();
   };
 
   const handleLogin = () => {
-    setShowSignupModal(false);
-    navigation.navigate('Auth', { screen: 'Login' });
+    // Show the signup modal but in sign-in mode
+    setShowSignupModal(true);
   };
 
   const handleWantMore = () => {
@@ -685,58 +649,15 @@ export default function RecorderScreen() {
     setError(null);
   };
 
-  const renderTrialBanner = () => {
-    if (user) return null;
+  const handleUpgrade = () => {
+    setShowSignupModal(true);
+  };
 
-    return (
-      <View style={styles.trialBanner}>
-        <View style={styles.trialHeader}>
-          <View style={styles.trialTimeInfo}>
-            <Ionicons 
-              name="time-outline" 
-              size={28} 
-              color={isRecording ? '#FF4B4B' : 'white'} 
-            />
-            <Text style={[
-              styles.trialTimeText,
-              isRecording && styles.recordingTrialText
-            ]}>
-              {minutesRemaining}
-            </Text>
-            <Text style={[
-              styles.trialTimeUnit,
-              isRecording && styles.recordingTrialText
-            ]}>
-              min
-            </Text>
-          </View>
-          <Text style={styles.trialLabel}>remaining in your trial</Text>
-        </View>
-
-        <View style={styles.trialProgress}>
-          <View style={[
-            styles.trialProgressBar, 
-            { width: `${(minutesUsed / 30) * 100}%` },
-            isRecording && styles.recordingProgressBar
-          ]} />
-        </View>
-
-        <TouchableOpacity 
-          style={[
-            styles.upgradeButton,
-            isRecording && styles.recordingUpgradeButton
-          ]}
-          onPress={handleWantMore}
-          disabled={isRecording}
-        >
-          <Text style={styles.upgradeButtonText}>Upgrade Now</Text>
-          <View style={styles.savingsBadge}>
-            <Text style={styles.savingsText}>Save 20%</Text>
-          </View>
-          <Ionicons name="arrow-forward" size={20} color="white" />
-        </TouchableOpacity>
-      </View>
-    );
+  const handlePurchaseHours = () => {
+    if (user) {
+      const customUser = user as unknown as User;
+      navigation.navigate('PurchaseHours', { userId: customUser.id });
+    }
   };
 
   const startAnimation = () => {
@@ -759,7 +680,6 @@ export default function RecorderScreen() {
       setAiThinking(true);
       startAnimation();
       
-      // TODO: Replace with actual API call to generate action items
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -781,10 +701,10 @@ export default function RecorderScreen() {
       });
 
       const data = await response.json();
-      const items = data.choices[0].message.content
+      const items: string[] = data.choices[0].message.content
         .split('\n')
-        .filter(item => item.trim().startsWith('•'))
-        .map(item => item.trim());
+        .filter((item: string) => item.trim().startsWith('•'))
+        .map((item: string) => item.trim());
 
       setActionItems(items);
     } catch (error) {
@@ -824,9 +744,6 @@ export default function RecorderScreen() {
             clearInterval(interval!);
             return prev;
           }
-          
-          setMinutesRemaining(30 - newElapsed);
-          setMinutesUsed(newElapsed);
           
           return newElapsed;
         });
@@ -883,35 +800,49 @@ export default function RecorderScreen() {
           </View>
 
           {error && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
+            <View style={[styles.errorContainer, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' }]}>
+              <Text style={[styles.errorText, { color: '#92400E' }]}>{error}</Text>
             </View>
           )}
 
           <View style={styles.controlsSection}>
             <TouchableOpacity
-              style={[styles.recordButton, isRecording && styles.recordingButton]}
-              onPress={handlePress}
+              style={[
+                styles.recordButton, 
+                isRecording && styles.recordingButton,
+                !user && styles.recordButtonWithBadge
+              ]}
+              onPress={!user ? () => setShowSignupModal(true) : handlePress}
               disabled={isProcessing}
             >
               <Animated.View style={[styles.recordButtonInner, pulseStyle]}>
                 <Ionicons
                   name={isRecording ? 'stop' : 'mic'}
                   size={32}
-                  color={isRecording ? '#DC2626' : '#4F46E5'}
+                  color={!user ? 'white' : (isRecording ? '#DC2626' : '#4F46E5')}
                 />
               </Animated.View>
             </TouchableOpacity>
 
             {!isRecording && (
-              <TouchableOpacity style={styles.uploadButton} onPress={handleUpload}>
+              <TouchableOpacity 
+                style={styles.uploadButton} 
+                onPress={user ? handleUpload : () => setShowSignupModal(true)}
+              >
                 <Ionicons name="cloud-upload-outline" size={24} color="#6B7280" />
                 <Text style={styles.uploadText}>Upload Audio</Text>
               </TouchableOpacity>
             )}
           </View>
 
-          {!user && renderTrialBanner()}
+          {!user && (
+            <SubscriptionBanner
+              user={user as unknown as User}
+              isRecording={isRecording}
+              onUpgrade={() => setShowSignupModal(true)}
+              onPurchaseHours={handlePurchaseHours}
+            />
+          )}
         </View>
       </Surface>
 
@@ -942,17 +873,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-    padding: 16,
   },
   recorderContainer: {
     flex: 1,
     backgroundColor: 'white',
-    borderRadius: 28,
+    margin: 16,
+    borderRadius: 24,
     overflow: 'hidden',
   },
   recordingView: {
     flex: 1,
-    justifyContent: 'space-between',
+    padding: 24,
   },
   mainContent: {
     flex: 1,
@@ -970,35 +901,21 @@ const styles = StyleSheet.create({
     fontSize: 48,
   },
   controlsSection: {
-    paddingBottom: 24,
-    paddingHorizontal: 24,
     alignItems: 'center',
-    gap: 24,
+    marginBottom: 24,
   },
   recordButton: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#EEF2FF',
-    padding: 4,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#4F46E5',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   recordButtonInner: {
-    flex: 1,
-    backgroundColor: 'white',
-    borderRadius: 56,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
   },
   recordingButton: {
     backgroundColor: '#FEE2E2',
@@ -1019,17 +936,17 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   errorContainer: {
-    backgroundColor: '#FEE2E2',
-    borderRadius: 12,
+    marginVertical: 16,
     padding: 12,
-    width: '100%',
-    marginHorizontal: 24,
+    borderRadius: 8,
+    borderWidth: 1,
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
   },
   errorText: {
-    color: '#DC2626',
     fontSize: 14,
+    color: '#92400E',
     textAlign: 'center',
-    fontWeight: '500',
   },
   trialBanner: {
     backgroundColor: '#4F46E5',
@@ -1257,5 +1174,19 @@ const styles = StyleSheet.create({
     color: '#4B7BF5',
     fontSize: 15,
     fontWeight: '500',
+  },
+  recordButtonWithBadge: {
+    backgroundColor: '#4F46E5',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#4F46E5',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
 }); 

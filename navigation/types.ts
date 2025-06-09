@@ -1,15 +1,5 @@
 import { NavigatorScreenParams } from '@react-navigation/native';
 
-export type RootStackParamList = {
-  Main: undefined;
-  Privacy: undefined;
-  Auth: {
-    screen: keyof AuthStackParamList;
-    params?: any;
-  };
-  SignInModal: undefined;
-};
-
 export type TabStackParamList = {
   Recordings: undefined;
   Recorder: undefined;
@@ -19,11 +9,24 @@ export type TabStackParamList = {
 export type AuthStackParamList = {
   Login: undefined;
   Signup: undefined;
+  PurchaseHours: {
+    userId?: string;
+  };
   Pricing: {
     fromTrial: boolean;
     minutesUsed: number;
     minutesRemaining: number;
   };
+};
+
+export type DrawerParamList = {
+  MainHome: NavigatorScreenParams<TabStackParamList>;
+  Privacy: undefined;
+  Auth: NavigatorScreenParams<AuthStackParamList>;
+};
+
+export type RootStackParamList = {
+  Root: NavigatorScreenParams<DrawerParamList>;
 };
 
 declare global {

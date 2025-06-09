@@ -1,19 +1,29 @@
 import React from 'react';
 import { TouchableOpacity, Text, View, StyleSheet, Alert } from 'react-native';
-import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList, DrawerItem } from '@react-navigation/drawer';
+import { createDrawerNavigator, DrawerContentComponentProps } from '@react-navigation/drawer';
 import TabNavigator from './TabNavigator';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
+import AuthStack from './AuthStack';
 import { useAuth } from '../contexts/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
+import { DrawerParamList } from './types';
 
-const Drawer = createDrawerNavigator();
+const Drawer = createDrawerNavigator<DrawerParamList>();
 
 function SignInButton() {
   const { signIn } = useAuth();
 
+  const handleSignIn = async () => {
+    try {
+      await signIn();
+    } catch (error) {
+      console.error('Sign in error:', error);
+    }
+  };
+
   return (
     <TouchableOpacity
-      onPress={signIn}
+      onPress={handleSignIn}
       style={{ marginRight: 15, flexDirection: 'row', alignItems: 'center' }}
     >
       <Ionicons name="log-in-outline" size={24} color="#4F46E5" />
@@ -22,7 +32,7 @@ function SignInButton() {
   );
 }
 
-function CustomDrawerContent(props) {
+function CustomDrawerContent(props: DrawerContentComponentProps) {
   const { user, signOut } = useAuth();
 
   const handleSupport = () => {
@@ -34,53 +44,53 @@ function CustomDrawerContent(props) {
   };
 
   return (
-    <DrawerContentScrollView {...props}>
+    <View style={{ flex: 1 }}>
       {user && (
         <View style={styles.userInfo}>
           <Text style={styles.userEmail}>{user.email}</Text>
         </View>
       )}
-      <DrawerItem
-        label="Home"
-        icon={({ color, size }) => (
-          <Ionicons name="home-outline" size={size} color={color} />
-        )}
+      <TouchableOpacity
+        style={styles.drawerItem}
         onPress={() => props.navigation.navigate('MainHome')}
-      />
+      >
+        <Ionicons name="home-outline" size={24} color="#374151" />
+        <Text style={styles.drawerItemText}>Home</Text>
+      </TouchableOpacity>
       
       <View style={styles.separator} />
       
       <View style={styles.bottomSection}>
         <Text style={styles.sectionTitle}>Legal & Support</Text>
-        <DrawerItem
-          label="Privacy Policy"
-          icon={({ color, size }) => (
-            <Ionicons name="shield-checkmark-outline" size={size} color={color} />
-          )}
+        <TouchableOpacity
+          style={styles.drawerItem}
           onPress={() => props.navigation.navigate('Privacy')}
-        />
-        <DrawerItem
-          label="Contact Support"
-          icon={({ color, size }) => (
-            <Ionicons name="mail-outline" size={size} color={color} />
-          )}
+        >
+          <Ionicons name="shield-checkmark-outline" size={24} color="#374151" />
+          <Text style={styles.drawerItemText}>Privacy Policy</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.drawerItem}
           onPress={handleSupport}
-        />
+        >
+          <Ionicons name="mail-outline" size={24} color="#374151" />
+          <Text style={styles.drawerItemText}>Contact Support</Text>
+        </TouchableOpacity>
       </View>
 
       {user && (
         <>
           <View style={styles.separator} />
-          <DrawerItem
-            label="Sign Out"
-            icon={({ color, size }) => (
-              <Ionicons name="log-out-outline" size={size} color={color} />
-            )}
+          <TouchableOpacity
+            style={styles.drawerItem}
             onPress={signOut}
-          />
+          >
+            <Ionicons name="log-out-outline" size={24} color="#374151" />
+            <Text style={styles.drawerItemText}>Sign Out</Text>
+          </TouchableOpacity>
         </>
       )}
-    </DrawerContentScrollView>
+    </View>
   );
 }
 
@@ -106,9 +116,6 @@ export default function DrawerNavigator() {
         options={{
           title: 'Home',
           headerRight: () => !user ? <SignInButton /> : null,
-          drawerIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
-          )
         }}
       />
       <Drawer.Screen 
@@ -119,6 +126,17 @@ export default function DrawerNavigator() {
           drawerItemStyle: { height: 0 }
         }}
       />
+      {!user && (
+        <Drawer.Screen
+          name="Auth"
+          component={AuthStack}
+          options={{
+            headerShown: false,
+            drawerItemStyle: { height: 0 },
+            swipeEnabled: false
+          }}
+        />
+      )}
     </Drawer.Navigator>
   );
 }
@@ -149,5 +167,15 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     paddingHorizontal: 16,
     marginBottom: 8,
+  },
+  drawerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+  },
+  drawerItemText: {
+    marginLeft: 32,
+    fontSize: 16,
+    color: '#374151',
   },
 });

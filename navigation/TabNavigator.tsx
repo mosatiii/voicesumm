@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import RecorderScreen from '../screens/RecorderScreen';
 import TodoScreen from '../screens/TodoScreen';
 import RecordingsScreen from '../screens/RecordingsScreen';
-import { Mic, CheckSquare, Headphones } from 'lucide-react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const Tab = createBottomTabNavigator();
 
@@ -45,7 +45,7 @@ export default function TabNavigator() {
         options={{
           tabBarIcon: ({ color, size }) => (
             <View style={{ marginTop: -4 }}>
-              <Headphones color={color} size={size} />
+              <MaterialCommunityIcons name="headphones" color={color} size={size} />
             </View>
           ),
           tabBarLabelStyle: {
@@ -79,7 +79,7 @@ export default function TabNavigator() {
               borderWidth: 4,
               borderColor: 'white',
             }}>
-              <Mic color="white" size={28} />
+              <MaterialCommunityIcons name="microphone" color="white" size={28} />
             </View>
           ),
           tabBarLabel: () => null,
@@ -91,7 +91,7 @@ export default function TabNavigator() {
         options={{
           tabBarIcon: ({ color, size }) => (
             <View style={{ marginTop: -4 }}>
-              <CheckSquare color={color} size={size} />
+              <MaterialCommunityIcons name="checkbox-marked-outline" color={color} size={size} />
             </View>
           ),
           tabBarLabelStyle: {

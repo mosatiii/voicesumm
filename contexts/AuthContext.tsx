@@ -1,38 +1,61 @@
-import React, { createContext, useContext } from 'react';
-import { useExpoAuth } from '../hooks/useExpoAuth';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { onAuthStateChanged, User, signOut as firebaseSignOut } from 'firebase/auth';
+import { auth } from '../config/firebase';
+import { useGoogleAuth } from '../hooks/useGoogleAuth';
+import { AuthSessionResult } from 'expo-auth-session';
 
 interface AuthContextType {
-  user: { email: string; id: string } | null;
+  user: User | null;
   loading: boolean;
-  signIn: () => Promise<any>;
-  signOut: () => void;
-  trialMinutesUsed: number;
-  trialMinutesRemaining: number;
-  addTrialMinutes: (minutes: number) => Promise<void>;
+  signIn: () => Promise<AuthSessionResult | null>;
+  signOut: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  loading: true,
+  signIn: async () => null,
+  signOut: async () => {},
+});
+
+export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { userInfo, signIn, signOut, isLoading } = useExpoAuth();
-  
-  const auth: AuthContextType = {
-    user: userInfo ? { email: userInfo.email, id: userInfo.email } : null,
-    loading: isLoading,
-    signIn: async () => signIn(),
-    signOut,
-    trialMinutesUsed: 0,
-    trialMinutesRemaining: 30,
-    addTrialMinutes: async () => {},
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const googleAuth = useGoogleAuth();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      setLoading(false);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const signIn = async () => {
+    try {
+      return await googleAuth.signIn();
+    } catch (error) {
+      console.error('Sign in error:', error);
+      throw error;
+    }
   };
 
-  return <AuthContext.Provider value={auth}>{children}</AuthContext.Provider>;
-}
+  const signOut = async () => {
+    try {
+      await firebaseSignOut(auth);
+      // Firebase auth state will be handled by onAuthStateChanged
+    } catch (error) {
+      console.error('Sign out error:', error);
+      throw error;
+    }
+  };
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  return (
+    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  );
 } 

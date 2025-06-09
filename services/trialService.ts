@@ -1,5 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import * as AuthSession from 'expo-auth-session';
+import { authService } from './authService';
+import { UserSubscriptionStatus } from '../types/auth';
 
 // Storage keys
 const STORAGE_KEYS = {
@@ -48,12 +50,12 @@ export const trialService = {
   },
 
   async shouldPromptSignup(): Promise<boolean> {
-    // Only prompt if user is not authenticated and trial is exceeded
-    const token = await this.getAuthToken();
-    if (token) return false;
-
-    const minutesUsed = await this.getTrialMinutesUsed();
-    return minutesUsed >= TRIAL_LIMIT_MINUTES;
+    const user = await authService.getCurrentUser();
+    if (!user) {
+      // Anonymous user - prompt after their 5-minute session
+      return true;
+    }
+    return false;
   },
 
   async getMinutesRemaining(): Promise<number> {
@@ -106,5 +108,48 @@ export const trialService = {
       console.error('Error getting user data:', error);
       return null;
     }
+  },
+
+  async canStartRecording(): Promise<boolean> {
+    const user = await authService.getCurrentUser();
+    if (!user) {
+      // Anonymous user - can record for 5 minutes
+      return true;
+    }
+
+    const { subscription } = user;
+    return subscription.minutesRemaining > 0;
+  },
+
+  async updateRecordingUsage(durationMinutes: number) {
+    const user = await authService.getCurrentUser();
+    if (!user) return;
+
+    await authService.updateMinutesRemaining(user.id, durationMinutes);
+  },
+
+  async canUseAI(): Promise<boolean> {
+    return authService.canAccessFeature('aiActions');
+  },
+
+  async getRemainingTime(): Promise<number> {
+    const user = await authService.getCurrentUser();
+    if (!user) return 5; // Anonymous users get 5 minutes
+    return user.subscription.minutesRemaining;
+  },
+
+  async getMaxRecordingDuration(): Promise<number> {
+    const user = await authService.getCurrentUser();
+    if (!user) return 5; // Anonymous users limited to 5 minutes
+    return user.subscription.features.maxRecordingDuration;
+  },
+
+  async addPremiumHours(userId: string, hours: number, transactionId: string) {
+    const user = await authService.getCurrentUser();
+    if (!user || user.subscription.status !== UserSubscriptionStatus.PREMIUM) {
+      throw new Error('Only premium users can add hours');
+    }
+
+    await authService.addPremiumHours(userId, hours, transactionId);
   }
 }; 
