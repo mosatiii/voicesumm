@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.voicesummarizer.app'
+    namespace 'com.voccanote.app'
     defaultConfig {
-        applicationId 'com.voicesummarizer.app'
+        applicationId 'com.voccanote.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

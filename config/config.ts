@@ -1,9 +1,9 @@
 import Constants from 'expo-constants';
 
 // ✅ Runtime values from app config
-export const RUNPOD_ENDPOINT =
-  Constants.expoConfig?.extra?.runpodEndpoint ??
-  'https://u0yfim6wmdb9ov-8000.proxy.runpod.net/';
+export const TRANSCRIPTION_ENDPOINT =
+  Constants.expoConfig?.extra?.transcriptionEndpoint ??
+  'https://whispercpp-production-9842.up.railway.app';
 
 // Auth config
 export const AUTH_CONFIG = {
@@ -23,7 +23,7 @@ export const AUTH_CONFIG = {
 
 // ✅ Exports
 export const CONFIG = {
-  RUNPOD_ENDPOINT: process.env.EXPO_PUBLIC_RUNPOD_ENDPOINT,
+  TRANSCRIPTION_ENDPOINT: process.env.EXPO_PUBLIC_TRANSCRIPTION_ENDPOINT,
   OPENAI_API_KEY: process.env.EXPO_PUBLIC_OPENAI_API_KEY,
   AUTH: {
     googleClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,

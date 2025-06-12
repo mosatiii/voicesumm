@@ -1,8 +1,9 @@
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import { storageService } from './storageService';
+import { CONFIG } from '../config/config';
 
-const RUNPOD_ENDPOINT = 'https://u0yfim6wmdb9ov-8000.proxy.runpod.net/transcribe';
+const TRANSCRIPTION_ENDPOINT = `${CONFIG.TRANSCRIPTION_ENDPOINT}/transcribe`;
 const CHUNK_DURATION = 3000; // 3 seconds for better transcription
 
 class RecordingService {
@@ -190,7 +191,7 @@ class RecordingService {
       formData.append('task', 'transcribe');
       formData.append('language', 'auto');
 
-      const response = await fetch(RUNPOD_ENDPOINT, {
+      const response = await fetch(TRANSCRIPTION_ENDPOINT, {
         method: 'POST',
         body: formData,
         headers: {

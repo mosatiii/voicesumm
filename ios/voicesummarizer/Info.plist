@@ -27,8 +27,8 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>com.voicesummarizer.app</string>
-          <string>com.voicesummarizer.app</string>
+          <string>com.voccanote.app</string>
+          <string>com.voccanote.app</string>
         </array>
       </dict>
       <dict>

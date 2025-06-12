@@ -21,7 +21,10 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "host.exp.exponent"
+      "package": "com.voccanote.app"
+    },
+    "ios": {
+      "bundleIdentifier": "com.voccanote.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -32,6 +35,7 @@
     ],
     "extra": {
       "router": {},
+      "transcriptionEndpoint": "https://whispercpp-production-9842.up.railway.app",
       "eas": {
         "projectId": "89b077f3-6821-49ea-84ed-030246b56f52"
       }

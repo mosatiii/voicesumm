@@ -7,13 +7,13 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "RUNPOD_ENDPOINT": "https://whispercpp-production-9842.up.railway.app/"
+        "TRANSCRIPTION_ENDPOINT": "https://whispercpp-production-9842.up.railway.app"
       }
     },
     "preview": {
       "distribution": "internal",
       "env": {
-        "RUNPOD_ENDPOINT": "https://whispercpp-production-9842.up.railway.app/"
+        "TRANSCRIPTION_ENDPOINT": "https://whispercpp-production-9842.up.railway.app"
       }
     },
     "production": {
@@ -24,7 +24,7 @@
         "buildConfiguration": "Release"
       },
       "env": {
-        "RUNPOD_ENDPOINT": "https://whispercpp-production-9842.up.railway.app/"
+        "TRANSCRIPTION_ENDPOINT": "https://whispercpp-production-9842.up.railway.app"
       }
     }
   }
