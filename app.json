@@ -16,7 +16,6 @@
     "assetBundlePatterns": [
       "**/*"
     ],
-   
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -32,8 +31,9 @@
       "expo-web-browser"
     ],
     "extra": {
+      "router": {},
       "eas": {
-        "projectId": "voice-summarizer"
+        "projectId": "89b077f3-6821-49ea-84ed-030246b56f52"
       }
     }
   }

@@ -7,8 +7,7 @@ import Constants from 'expo-constants';
 import { auth } from '../config/firebase';
 import { AuthSessionResult } from 'expo-auth-session';
 
-// ✅ This must be at the top level
-WebBrowser.maybeCompleteAuthSession();
+
 
 // ✅ Web Client ID from Google Cloud Console (linked to Firebase project)
 const WEB_CLIENT_ID = '622917397371-iupqoqu3oqf8oto3rc4va5o4e3rs3p5l.apps.googleusercontent.com';
@@ -18,6 +17,7 @@ const redirectUri = 'https://auth.expo.io/@mosatiii/voice-summarizer';
 
 // ✅ Random nonce for extra security
 const nonce = Math.random().toString(36).substring(2);
+makeRedirectUri({ scheme: 'voice-summarizer' })
 
 interface GoogleAuthHook {
   signIn: () => Promise<AuthSessionResult | null>;

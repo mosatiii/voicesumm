@@ -1,3 +1,4 @@
+import 'react-native-reanimated';
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator, Text } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
