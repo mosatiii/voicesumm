@@ -1,4 +1,4 @@
-package com.voicesummarizer.app
+package com.voccanote.app
 
 import android.os.Build
 import android.os.Bundle

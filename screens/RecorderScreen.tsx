@@ -34,7 +34,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SubscriptionBanner } from '../components/SubscriptionBanner';
 
-const { RUNPOD_ENDPOINT } = CONFIG;
+const { TRANSCRIPTION_ENDPOINT } = CONFIG;
 
 type RecorderScreenNavigationProp = CompositeNavigationProp<
   BottomTabNavigationProp<TabStackParamList, 'Recorder'>,
@@ -479,7 +479,7 @@ export default function RecorderScreen() {
 
       const token = await trialService.getAuthToken();
       
-      const response = await fetch(RUNPOD_ENDPOINT, {
+      const response = await fetch(TRANSCRIPTION_ENDPOINT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
